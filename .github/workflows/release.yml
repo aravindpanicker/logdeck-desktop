@@ -63,14 +63,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: macos-arm64
+          # One fat binary covering Apple Silicon and Intel, so a visitor cannot
+          # pick the wrong .dmg. Both Rust targets must be present for the lipo.
+          - label: macos-universal
             platform: macos-latest
-            rust_targets: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin
-          - label: macos-x64
-            platform: macos-latest
-            rust_targets: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
           - label: linux-x64
             platform: ubuntu-22.04
             rust_targets: ""
@@ -121,7 +119,7 @@ jobs:
           tagName: v${{ needs.gate.outputs.version }}
           releaseName: LogDeck Desktop v${{ needs.gate.outputs.version }}
           releaseBody: |
-            Unsigned builds for macOS (Apple Silicon and Intel), Windows and Linux.
+            Unsigned builds for macOS (one universal .dmg for Apple Silicon and Intel), Windows and Linux.
 
             macOS refuses the first launch with "unidentified developer" — right-click the app and choose *Open*. Windows shows a SmartScreen warning behind *More info → Run anyway*.
           releaseDraft: false

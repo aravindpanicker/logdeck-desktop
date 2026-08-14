@@ -1,6 +1,6 @@
 [package]
 name = "logdeck-desktop"
-version = "1.0.2"
+version = "1.0.3"
 description = "A desktop log reader for local Laravel projects"
 authors = ["Aravind Panicker"]
 license = "MIT"
