@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LogDeck Desktop",
+  "version": "1.0.0",
+  "identifier": "com.aravind.logdeck-desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LogDeck Desktop",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "publisher": "Aravind Panicker",
+    "copyright": "Copyright © 2026 Aravind Panicker",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "shortDescription": "A desktop log reader for local Laravel projects",
+    "longDescription": "LogDeck Desktop watches the storage/logs directory of every Laravel project you register and streams them in real time. Each log event — header, JSON context and stack frames — is one entry you can filter, search and copy whole.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

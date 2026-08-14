@@ -1,0 +1,151 @@
+/*
+ * Base layer. Reset-ish, plus the app-wide defaults that every later phase
+ * inherits. Colour comes from tokens.css only — never a literal.
+ */
+
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  /* A log reader is not a document: the window itself never scrolls, the
+     stream region does. */
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-size: inherit;
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background-color: var(--color-selection);
+  color: var(--color-text);
+}
+
+/*
+ * A designed focus ring, not the browser default. Keyboard reachability is a
+ * requirement of the sidebar (P7) and of every row control in the stream (P8),
+ * so the ring is defined once here and inherited rather than restyled per
+ * component.
+ */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/*
+ * Level → rail mapping.
+ *
+ * Any element carrying `data-level` resolves `--color-rail` to that Level's
+ * colour; the element then paints it as a left rail. Defined once here so the
+ * sidebar badge and the stream row share one source, and so no component ever
+ * reaches for a `--level-*` token directly.
+ */
+[data-level="debug"] {
+  --color-rail: var(--level-debug);
+}
+[data-level="info"] {
+  --color-rail: var(--level-info);
+}
+[data-level="notice"] {
+  --color-rail: var(--level-notice);
+}
+[data-level="warning"] {
+  --color-rail: var(--level-warning);
+}
+[data-level="error"] {
+  --color-rail: var(--level-error);
+}
+[data-level="critical"] {
+  --color-rail: var(--level-critical);
+}
+[data-level="alert"] {
+  --color-rail: var(--level-alert);
+}
+[data-level="emergency"] {
+  --color-rail: var(--level-emergency);
+}
+
+/* Scrollbars belong to the surface they sit on, not to the platform default. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

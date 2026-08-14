@@ -1,0 +1,149 @@
+/*
+ * LogDeck Desktop design tokens — terminal-native dark (BUILD-SPEC.md §6).
+ *
+ * This file is the ONLY place a colour is defined. Every other stylesheet in
+ * src/ references these custom properties; a literal colour anywhere else is a
+ * spec violation, because Level colour is semantic and must stay in one place.
+ *
+ * No colour is defined solely inside a media query — the app has one committed
+ * appearance, and a token that only exists under a query is a token that can
+ * evaluate to nothing.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Surfaces -------------------------------------------------------- */
+  /* The stream sits on `base`; the sidebar is a raised surface against it. */
+  --color-base: oklch(16% 0.012 260);
+  --color-surface: oklch(20% 0.014 260);
+  --color-surface-raised: oklch(24% 0.014 260);
+  --color-border: oklch(28% 0.015 260);
+  --color-border-strong: oklch(36% 0.018 260);
+
+  /* ---- Text ------------------------------------------------------------ */
+  --color-text: oklch(88% 0.01 260);
+  --color-text-muted: oklch(62% 0.012 260);
+  /*
+   * `faint` was oklch(46%), which measures 2.72:1 on `base` and 2.54:1 on
+   * `surface` — below the 4.5:1 WCAG AA floor for text this small, and below
+   * even the 3:1 non-text floor for the dashed rails drawn in it.
+   *
+   * It cannot simply be nudged up. On these surfaces the AA floor is 58%
+   * against `base`, 60% against `surface` and 62% against `surface-raised`, and
+   * `muted` is already 62% — so there is no room for a compliant third text
+   * tier *below* muted. This palette supports two accessible text tiers, not
+   * three, and `faint` is now an alias rather than a colour of its own.
+   *
+   * Kept as a name because its call sites read as intent ("this is the quiet
+   * one") and deleting it would churn all of them. Anything that genuinely
+   * needs to recede should lose weight, size or position rather than reach for
+   * a lower-contrast grey.
+   */
+  --color-text-faint: var(--color-text-muted);
+
+  /* ---- Interaction ----------------------------------------------------- */
+  /* Hover lifts the row background rather than tinting it (§6). */
+  --color-hover: oklch(26% 0.015 260);
+  --color-active: oklch(30% 0.018 260);
+  --color-focus-ring: oklch(74% 0.14 240);
+  --color-selection: oklch(38% 0.07 245);
+
+  /* ---- Atmosphere ------------------------------------------------------ */
+  /* Depth and texture. Kept here so no stylesheet needs a colour literal. */
+  --color-shadow: oklch(0% 0 0 / 0.28);
+  --color-glow: oklch(72% 0.06 250 / 0.05);
+  --color-scrim: oklch(0% 0 0 / 0.4);
+
+  /* ---- Level ----------------------------------------------------------- */
+  /*
+   * Semantic, not decorative. Carried as a left rail so severity is scannable
+   * down the gutter without competing with the message for attention.
+   * ERROR and above are red and deepen — hotter and more saturated — as the
+   * Level climbs, so EMERGENCY reads as worse than ERROR at a glance.
+   */
+  /*
+   * No severity, not a low one. Deliberately the only Level with no hue: it is
+   * rendered as a dashed rail so an unheaded fragment reads as "the file did not
+   * say", rather than borrowing the authority of a real level.
+   *
+   * Raised from oklch(46%) for contrast: `.log-row__level` colours its label
+   * text with the rail, so at 46% the word UNKNOWN sat at 2.72:1 and the dashed
+   * rail missed even the 3:1 graphic floor. At 62% both clear AA on `base`
+   * (5.33:1) and `surface` (4.97:1).
+   *
+   * This makes it numerically equal to `--level-debug`, which is deliberate but
+   * worth knowing: the two are now told apart by the broken rail and the label
+   * text, not by colour. It stays a literal rather than an alias of a text
+   * token, because Level colour is semantic and must not shift when the text
+   * ramp is retuned.
+   */
+  --level-unknown: oklch(62% 0.012 260);
+
+  --level-debug: oklch(62% 0.012 260);
+  --level-info: oklch(70% 0.13 245);
+  --level-notice: oklch(72% 0.1 195);
+  --level-warning: oklch(78% 0.15 75);
+  --level-error: oklch(65% 0.19 27);
+  --level-critical: oklch(62% 0.21 24);
+  --level-alert: oklch(59% 0.23 21);
+  --level-emergency: oklch(56% 0.25 18);
+
+  /* Default rail colour; a row overrides it with its own Level token. */
+  --color-rail: var(--level-debug);
+
+  /* ---- Typography ------------------------------------------------------ */
+  /*
+   * System monospace only. No webfont: no network request from the WebView,
+   * and no layout shift when the stream is already scrolling (§6).
+   */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* Level labels are small and letter-spaced so they read as labels, not words. */
+  --tracking-label: 0.12em;
+  --tracking-wordmark: 0.24em;
+
+  /* ---- Space ----------------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ---- Radius ---------------------------------------------------------- */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 9px;
+  --radius-pill: 999px;
+
+  /* ---- Motion ---------------------------------------------------------- */
+  --duration-fast: 110ms;
+  --duration-normal: 190ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- Structure ------------------------------------------------------- */
+  --rail-width: 3px;
+  --sidebar-width: 15rem;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}

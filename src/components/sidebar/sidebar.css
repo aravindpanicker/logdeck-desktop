@@ -1,0 +1,392 @@
+/*
+ * The **Project** sidebar.
+ *
+ * Colour comes from tokens.css only — a literal here would be a spec violation
+ * (§6). Level colour arrives through `data-level`, which global.css resolves to
+ * `--color-rail`; nothing below names a `--level-*` token.
+ *
+ * The rows are dense, full-bleed, and monospace: a source list read by scanning
+ * a gutter, not a stack of cards.
+ */
+
+/* ---- List --------------------------------------------------------------- */
+
+/*
+ * The sidebar body is padded; rows cancel it so their rails sit flush against
+ * the sidebar's own edge and read as one continuous gutter.
+ */
+.project-list {
+  margin: calc(var(--space-3) * -1) calc(var(--space-4) * -1);
+}
+
+.project-list__items {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-list__hint {
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-faint);
+  text-wrap: pretty;
+}
+
+.project-list__code {
+  font-family: inherit;
+  color: var(--color-text-muted);
+}
+
+.project-list__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-left: var(--rail-width) solid var(--color-rail);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background-color: var(--color-surface-raised);
+}
+
+.project-list__error-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.project-list__error-dismiss {
+  flex: none;
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.project-list__error-dismiss:hover {
+  color: var(--color-text);
+}
+
+/* ---- Row ---------------------------------------------------------------- */
+
+.project-row {
+  border-bottom: 1px solid var(--color-base);
+}
+
+.project-row__main {
+  display: flex;
+  align-items: stretch;
+}
+
+.project-row__select {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1ch minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-2) var(--space-2)
+    calc(var(--rail-width) + var(--space-3));
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * The rail is the row's whole visual state: absent when idle, lit when
+ * selected, dashed when the Project cannot be read. Shape, not only colour.
+ */
+.project-row__rail {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: var(--rail-width);
+  background-color: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.project-row__caret {
+  font-size: var(--text-xs);
+  color: var(--color-focus-ring);
+}
+
+.project-row__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.project-row__label {
+  font-size: var(--text-base);
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The reason an unhealthy Project is inert, inline and permanent (D4). */
+.project-row__note {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-tight);
+  color: var(--color-text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.project-row:hover .project-row__select {
+  background-color: var(--color-hover);
+}
+
+.project-row:hover .project-row__rail {
+  background-color: var(--color-border-strong);
+}
+
+.project-row__select:active {
+  background-color: var(--color-active);
+}
+
+.project-row[data-selected] .project-row__select {
+  background-color: var(--color-active);
+}
+
+.project-row[data-selected] .project-row__label {
+  font-weight: var(--weight-bold);
+}
+
+.project-row[data-selected] .project-row__rail,
+.project-row[data-selected]:hover .project-row__rail {
+  background-color: var(--color-focus-ring);
+}
+
+/* Dimmed, never hidden: the row still selects, it just has nothing to stream. */
+.project-row[data-inert] .project-row__label {
+  color: var(--color-text-muted);
+}
+
+.project-row[data-inert] .project-row__rail {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--color-border-strong) 0 4px,
+    transparent 4px 9px
+  );
+}
+
+/* ---- Remove ------------------------------------------------------------- */
+
+/*
+ * Present in the layout at all times so revealing it never reflows the row, and
+ * reachable by keyboard because `:focus-within` reveals it.
+ */
+.project-row__remove {
+  flex: none;
+  width: 2rem;
+  font-size: var(--text-md);
+  line-height: 1;
+  color: var(--color-text-faint);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.project-row:hover .project-row__remove,
+.project-row:focus-within .project-row__remove,
+.project-row[data-confirming] .project-row__remove {
+  opacity: 1;
+}
+
+.project-row__remove:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.project-row__remove:disabled {
+  opacity: 0;
+  cursor: default;
+}
+
+.project-row[data-confirming] .project-row__remove:disabled {
+  opacity: 0.4;
+}
+
+/* ---- Inline confirmation ------------------------------------------------ */
+
+/*
+ * Deliberate, but not modal: a browser dialog blocks the WebView and stops the
+ * stream behind it.
+ */
+.project-row__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3)
+    calc(var(--rail-width) + var(--space-3));
+  background-color: var(--color-surface-raised);
+  box-shadow: inset 0 1px 0 var(--color-border);
+}
+
+.project-row__confirm-copy {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.project-row__confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.project-row__confirm-yes,
+.project-row__confirm-no {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  transition: background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.project-row__confirm-yes {
+  color: var(--color-text);
+  background-color: var(--color-active);
+}
+
+.project-row__confirm-yes:hover:not(:disabled) {
+  background-color: var(--color-selection);
+}
+
+.project-row__confirm-no {
+  color: var(--color-text-muted);
+}
+
+.project-row__confirm-no:hover {
+  color: var(--color-text);
+  background-color: var(--color-hover);
+}
+
+/* ---- Activity badge ----------------------------------------------------- */
+
+/*
+ * How much and how bad, never what (ADR 0002). The Level is a rail, matching
+ * the stream's gutter, so severity is read the same way in both places.
+ */
+.activity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.activity-badge__rail {
+  width: var(--rail-width);
+  height: 0.9em;
+  border-radius: 1px;
+  background-color: var(--color-rail);
+}
+
+.activity-badge__count {
+  font-size: var(--text-2xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * UNKNOWN is the absence of a severity, not a low one: no hue, and a broken
+ * rail so it cannot pass for a Level the file actually announced.
+ */
+.activity-badge[data-level="unknown"] .activity-badge__rail {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--color-text-faint) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+/* At WARNING and above the count stops being incidental. */
+.activity-badge[data-level="warning"] .activity-badge__count,
+.activity-badge[data-level="error"] .activity-badge__count,
+.activity-badge[data-level="critical"] .activity-badge__count,
+.activity-badge[data-level="alert"] .activity-badge__count,
+.activity-badge[data-level="emergency"] .activity-badge__count {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+/* ---- Footer ------------------------------------------------------------- */
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar-footer__status {
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-footer__note {
+  color: var(--color-text-faint);
+  overflow-wrap: anywhere;
+}
+
+.add-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  transition: background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.add-project:hover:not(:disabled) {
+  background-color: var(--color-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.add-project:active:not(:disabled) {
+  background-color: var(--color-active);
+}
+
+.add-project:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.add-project__glyph {
+  font-size: var(--text-md);
+  line-height: 1;
+  color: var(--color-text-faint);
+}
+
+/* ---- Utility ------------------------------------------------------------ */
+
+/* The badge is two glyphs; this is the sentence behind them. */
+.sidebar-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

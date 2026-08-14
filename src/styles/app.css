@@ -1,0 +1,113 @@
+/* Shell layout. The two regions of the app: a raised sidebar and the stream. */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100%;
+}
+
+/* ---- Sidebar ------------------------------------------------------------ */
+
+/*
+ * A raised surface against the darker stream, separated by a border and a
+ * shadow that falls onto the stream — depth, not just a divider line.
+ */
+.app-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  box-shadow: 1px 0 0 var(--color-base), 8px 0 24px var(--color-shadow);
+  z-index: 1;
+}
+
+.app-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.app-brand__mark {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wordmark);
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+/* The two halves of the wordmark are weighted differently so the name has a
+   stress rather than sitting flat. */
+.app-brand__mark span {
+  font-weight: var(--weight-normal);
+  color: var(--color-text-muted);
+}
+
+.app-brand__version {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-sidebar__section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-base);
+}
+
+.app-sidebar__section-title {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.app-sidebar__count {
+  font-size: var(--text-2xs);
+  color: var(--color-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.app-sidebar__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-sidebar__footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-2xs);
+  color: var(--color-text-faint);
+}
+
+/* ---- Stream ------------------------------------------------------------- */
+
+.app-stream {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--color-base);
+
+  /*
+   * Atmosphere, not decoration: light spills from the sidebar edge and falls
+   * off across the stream, so the two surfaces read as lit from one direction
+   * rather than as two flat fills abutting. Deliberately not a repeating
+   * pattern — a 1px grid moirés against a scrolling monospace row.
+   */
+  background-image: radial-gradient(
+    120% 90% at 0% 0%,
+    var(--color-glow) 0%,
+    transparent 60%
+  );
+}

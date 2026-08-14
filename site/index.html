@@ -1,0 +1,1208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LogDeck Desktop — a log reader for local Laravel projects</title>
+<meta name="description" content="A desktop app that tails the storage/logs directory of the Laravel projects on your machine and keeps each log event together: header, JSON context and stack frames as one entry you can search inside and copy in full.">
+<link rel="icon" href="./icon.png" type="image/png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="LogDeck Desktop">
+<meta property="og:description" content="A log reader for the Laravel projects on your machine. One log event is one entry, on screen and on the clipboard.">
+<meta property="og:image" content="https://aravindpanicker.github.io/logdeck-desktop/icon.png">
+<meta property="og:url" content="https://aravindpanicker.github.io/logdeck-desktop/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+/*
+ * Palette, type scale, spacing and motion are the values in src/styles/tokens.css.
+ * The page and the app are one system; the level colours here are the level
+ * colours the app actually renders.
+ *
+ * The page adds display sizes and a column grid, and drops the two larger radii:
+ * every structural edge here is a hairline, so nothing needs rounding.
+ */
+:root {
+  color-scheme: dark;
+
+  --color-base: oklch(16% 0.012 260);
+  --color-surface: oklch(20% 0.014 260);
+  --color-surface-raised: oklch(24% 0.014 260);
+  --color-border: oklch(28% 0.015 260);
+  --color-border-strong: oklch(36% 0.018 260);
+
+  --color-text: oklch(88% 0.01 260);
+  --color-text-muted: oklch(62% 0.012 260);
+  --color-text-faint: oklch(46% 0.012 260);
+
+  --color-hover: oklch(26% 0.015 260);
+  --color-active: oklch(30% 0.018 260);
+  --color-focus-ring: oklch(74% 0.14 240);
+  --color-selection: oklch(38% 0.07 245);
+
+  --level-unknown: oklch(46% 0.012 260);
+  --level-debug: oklch(62% 0.012 260);
+  --level-info: oklch(70% 0.13 245);
+  --level-notice: oklch(72% 0.1 195);
+  --level-warning: oklch(78% 0.15 75);
+  --level-error: oklch(65% 0.19 27);
+  --level-critical: oklch(62% 0.21 24);
+  --level-alert: oklch(59% 0.23 21);
+  --level-emergency: oklch(56% 0.25 18);
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-2xs: 0.625rem;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.25rem;
+
+  --tracking-label: 0.12em;
+  --tracking-wordmark: 0.24em;
+
+  --space-1: 0.25rem;  --space-2: 0.5rem;  --space-3: 0.75rem;
+  --space-4: 1rem;     --space-5: 1.5rem;  --space-6: 2rem;
+  --space-7: 3rem;     --space-8: 4rem;
+
+  --radius-sm: 3px;
+
+  --duration-fast: 110ms;
+  --duration-normal: 190ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --rail-width: 3px;
+
+  /* ---- Page only -------------------------------------------------------- */
+  /*
+   * The page has its own type scale, and the window mockup keeps the app's.
+   * The app sets body text at 13px and labels at 10px, which is right for a
+   * dense log viewer read at a desk you control — and too small for a public
+   * page read by a stranger on a phone. Under 16px iOS also auto-zooms on
+   * focus, and 10px labels fall below the 12px floor for readable text.
+   *
+   * So: `--text-body` / `--text-small` / `--text-label` are page sizes, used
+   * everywhere outside `.window`; inside it, the app's own `--text-2xs`…
+   * `--text-md` are kept so the screenshot stays an honest depiction.
+   */
+  --text-display: clamp(1.875rem, 1.15rem + 2.6vw, 3.25rem);
+  --text-section: clamp(1.25rem, 1rem + 1.1vw, 1.75rem);
+  --text-body: clamp(1rem, 0.97rem + 0.15vw, 1.0625rem);
+  --text-small: 0.875rem;
+  --text-label: 0.75rem;
+  --measure: 68ch;
+  --page-max: 76rem;
+  --gutter: clamp(1rem, 0.35rem + 2.6vw, 3.5rem);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--color-base);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  line-height: 1.65;
+  font-variant-numeric: tabular-nums;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+::selection { background: var(--color-selection); color: var(--color-text); }
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute; left: var(--space-4); top: -4rem;
+  display: inline-flex; align-items: center; min-height: 44px;
+  background: var(--color-text); color: var(--color-base);
+  padding: var(--space-2) var(--space-4);
+  z-index: 20; text-decoration: none; font-weight: 700;
+  transition: top var(--duration-normal) var(--ease-out);
+}
+.skip:focus { top: var(--space-4); }
+
+/* ====================== Grid ======================
+ * One 12-column grid carries the whole page. Content is placed against it
+ * asymmetrically and does not always run to the right edge; the unused columns
+ * are the layout, not leftover space.
+ */
+.shell {
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-5); }
+
+/* ---- Repeated primitives ---- */
+
+/*
+ * `--color-text-faint` measures 2.72:1 on `--color-base`, which fails WCAG AA.
+ * In the app it is used for inert chrome at a viewing distance the developer
+ * controls; on a public page a label carrying real information has to be
+ * readable. So faint is confined to two jobs here — decoration (the shell
+ * prompt, the traffic-light dots) and the window mockup, where the point is to
+ * reproduce the app's own colours — and every label the reader is meant to read
+ * uses `--color-text-muted` at 5.33:1 instead.
+ */
+.label {
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+h3.label { margin: 0; line-height: inherit; }
+
+hr.rule { border: 0; border-top: 1px solid var(--color-border); margin: 0; }
+
+code {
+  font-size: 0.94em;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 0 4px;
+  overflow-wrap: anywhere;
+}
+
+/* ====================== Masthead ====================== */
+
+.masthead {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wordmark {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-height: 44px;
+  text-decoration: none; margin-right: auto;
+}
+.wordmark img { width: 22px; height: 22px; }
+.wordmark b {
+  font-size: var(--text-sm); font-weight: 700;
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+}
+.wordmark span { font-weight: 400; color: var(--color-text-muted); }
+
+/* Five links do not fit on a phone in one line, so they wrap rather than push
+ * the page wider than the viewport. */
+.masthead nav { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+/* Padded to a >=44px tap target on touch; the visual size is unchanged. */
+.masthead nav a {
+  display: inline-flex; align-items: center; min-height: 44px;
+  font-size: var(--text-small); color: var(--color-text-muted);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.masthead nav a:hover { color: var(--color-text); }
+
+.stamp {
+  font-size: var(--text-label); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+
+/* ====================== Hero ====================== */
+
+.hero { padding-block: clamp(var(--space-6), 5vw, var(--space-8)); row-gap: var(--space-6); }
+
+.hero__text { grid-column: 1 / -1; }
+.hero__spec { grid-column: 1 / -1; }
+@media (min-width: 56rem) {
+  .hero__text { grid-column: 1 / 8; }
+  .hero__spec {
+    grid-column: 9 / -1;
+    border-left: 1px solid var(--color-border);
+    padding-left: var(--space-5);
+  }
+}
+
+h1 {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-display);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  max-width: 26ch;
+  text-wrap: balance;
+}
+
+.lede {
+  margin: var(--space-5) 0 0;
+  max-width: var(--measure);
+  color: var(--color-text-muted);
+}
+.lede + .lede { margin-top: var(--space-3); }
+
+.cta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
+
+.btn {
+  display: inline-flex; align-items: center;
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit; font-size: var(--text-sm); font-weight: 500;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+.btn:hover { background: var(--color-hover); border-color: var(--color-text-faint); }
+
+/*
+ * The primary action is an inverted fill, not an accent fill. Red in this system
+ * means ERROR and above; spending it on a download button would make the one
+ * colour that carries meaning also decorative.
+ */
+.btn--primary {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-base);
+  font-weight: 700;
+}
+.btn--primary:hover {
+  background: #fff; border-color: #fff; color: var(--color-base);
+}
+
+.cta-note { margin: var(--space-4) 0 0; font-size: var(--text-small); color: var(--color-text-muted); }
+.cta-note a { color: var(--color-text); }
+
+/* ---- The spec block: the page's core primitive ---- */
+
+.spec { margin: 0; display: grid; }
+.spec > div {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 7rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+.spec > div:first-child { border-top: 1px solid var(--color-border); }
+.spec dt {
+  font-size: var(--text-label); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+  padding-top: 2px;
+}
+.spec dd { margin: 0; font-size: var(--text-small); color: var(--color-text); }
+.spec dd span { color: var(--color-text-muted); }
+
+/* ====================== Plate (the app window) ====================== */
+
+.plate { margin: 0; padding-block: 0 var(--space-8); }
+.plate figcaption {
+  display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  padding-top: var(--space-3);
+  font-size: var(--text-label); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+.plate figcaption em { font-style: normal; color: var(--color-text); letter-spacing: 0; text-transform: none; font-size: var(--text-small); }
+
+/* Flat, square, unrotated, at full width. It is evidence, not hero art. */
+.window {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-base);
+  overflow: hidden;
+}
+
+.titlebar {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-border-strong); }
+.titlebar em {
+  margin-inline: auto;
+  font-style: normal; font-size: var(--text-2xs);
+  color: var(--color-text-faint); letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.pane { display: grid; grid-template-columns: 11rem minmax(0, 1fr); min-height: 23rem; }
+@media (max-width: 34rem) { .pane { grid-template-columns: 7rem minmax(0, 1fr); } }
+
+.sidebar {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-1);
+}
+.brand {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-4);
+  font-size: var(--text-2xs); font-weight: 700;
+  letter-spacing: var(--tracking-wordmark); text-transform: uppercase;
+}
+.brand span { font-weight: 400; color: var(--color-text-muted); }
+.brand em { margin-left: auto; font-style: normal; color: var(--color-text-faint); letter-spacing: 0; }
+
+.sidebar__label {
+  margin: 0 0 var(--space-2);
+  display: flex; justify-content: space-between;
+  font-size: var(--text-2xs); font-weight: 500;
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.proj {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2);
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.proj[aria-current="true"] { background: var(--color-surface-raised); color: var(--color-text); }
+.proj .badge {
+  margin-left: auto; font-size: var(--text-2xs); font-weight: 700;
+  padding: 0 var(--space-2);
+  background: oklch(65% 0.19 27 / 0.18); color: var(--level-error);
+}
+.proj .badge--warn { background: oklch(78% 0.15 75 / 0.16); color: var(--level-warning); }
+.proj.offline { color: var(--color-text-faint); }
+.proj.offline::after { content: "offline"; margin-left: auto; font-size: var(--text-2xs); }
+
+.addproj {
+  margin-top: auto;
+  border: 1px dashed var(--color-border-strong);
+  padding: var(--space-2);
+  text-align: center;
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+.watching { margin: var(--space-2) 0 0; font-size: var(--text-2xs); color: var(--color-text-faint); }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+
+.toolbar {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+}
+.target {
+  flex: none;
+  border: 1px solid var(--color-border-strong);
+  padding: 0 var(--space-2);
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-faint);
+  white-space: nowrap;
+}
+.target b { color: var(--color-text); font-weight: 700; }
+
+.filters {
+  display: flex; min-width: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 80%, transparent);
+  mask-image: linear-gradient(90deg, #000 80%, transparent);
+}
+.chipf {
+  border-left: 2px solid var(--c);
+  padding: 2px var(--space-2);
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.chipf[data-off] { color: var(--color-text-faint); border-left-color: var(--color-border-strong); }
+
+.searchbar {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.searchbar .field {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-2xs); color: var(--color-text-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.searchbar .count { flex: none; font-size: var(--text-2xs); color: var(--color-text-muted); letter-spacing: var(--tracking-label); }
+
+.stream { padding: var(--space-2) 0; overflow: hidden; }
+
+.row {
+  display: grid;
+  grid-template-columns: var(--rail-width) auto auto minmax(0, 1fr) auto;
+  align-items: baseline; gap: var(--space-3);
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+  font-size: var(--text-xs);
+}
+.row .rail { align-self: stretch; background: var(--color-rail, var(--level-debug)); }
+.row .time { color: var(--color-text-faint); }
+.row .lvl {
+  font-size: var(--text-2xs); font-weight: 700;
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-rail, var(--level-debug));
+}
+.row .msg { color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .copy {
+  margin-left: auto;
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-faint);
+  border: 1px solid var(--color-border-strong);
+  padding: 0 var(--space-2);
+}
+.row.is-hovered { background: var(--color-hover); }
+
+.row[data-level="error"]    { --color-rail: var(--level-error); }
+.row[data-level="warning"]  { --color-rail: var(--level-warning); }
+.row[data-level="info"]     { --color-rail: var(--level-info); }
+.row[data-level="debug"]    { --color-rail: var(--level-debug); }
+.row[data-level="critical"] { --color-rail: var(--level-critical); }
+.row[data-level="unknown"]  { --color-rail: var(--level-unknown); }
+.row[data-level="unknown"] .rail {
+  background: repeating-linear-gradient(180deg, var(--level-unknown) 0 4px, transparent 4px 8px);
+}
+
+/* The context label and the trace it opens share one indent. */
+.ctx {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-1) calc(var(--rail-width) + var(--space-3));
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-faint);
+}
+
+.trace {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2) calc(var(--rail-width) + var(--space-3));
+  color: var(--color-text-muted); font-size: var(--text-2xs); line-height: 1.6;
+  white-space: pre; overflow-x: auto;
+}
+.trace .mark { background: oklch(78% 0.15 75 / 0.28); color: var(--color-text); }
+
+.brk {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-faint);
+}
+.brk::before, .brk::after { content: ""; height: 1px; background: var(--color-border); flex: 1; }
+
+.statusbar {
+  margin-top: auto;
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-2xs); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-faint);
+}
+.statusbar::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--level-info); }
+
+/*
+ * The only motion on the page: the stream fills the way the real one does when
+ * you select a project. It shows a behaviour rather than decorating an entrance.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal { opacity: 0; animation: fade var(--duration-slow) var(--ease-out) forwards; }
+  @keyframes fade { to { opacity: 1; } }
+}
+
+/* ====================== Sections ====================== */
+
+section { padding-block: clamp(var(--space-7), 6vw, var(--space-8)); }
+
+.head { grid-column: 1 / -1; }
+@media (min-width: 56rem) { .head { grid-column: 1 / 9; } }
+
+.head .sec {
+  display: flex; align-items: baseline; gap: var(--space-3);
+  font-size: var(--text-label); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+}
+h2 {
+  margin: 0;
+  font-size: var(--text-section);
+  line-height: 1.2; letter-spacing: -0.02em; font-weight: 700;
+  text-wrap: balance;
+}
+.head p { margin: var(--space-4) 0 0; max-width: var(--measure); color: var(--color-text-muted); }
+
+/* ---- §01 Vocabulary ---- */
+
+.terms { margin: var(--space-6) 0 0; grid-column: 1 / -1; display: grid; }
+.terms > div {
+  display: grid; gap: var(--space-1) var(--space-5);
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.terms > div:last-child { border-bottom: 1px solid var(--color-border); }
+@media (min-width: 46rem) {
+  .terms > div { grid-template-columns: minmax(0, 3fr) minmax(0, 8fr) minmax(0, 1fr); }
+}
+.terms dt { font-weight: 700; font-size: var(--text-md); letter-spacing: -0.01em; }
+.terms dd { margin: 0; color: var(--color-text-muted); max-width: var(--measure); }
+
+/* ---- §02 Figure pair ---- */
+
+.pair { grid-column: 1 / -1; margin: var(--space-6) 0 0; display: grid; gap: var(--space-5); }
+@media (min-width: 54rem) { .pair { grid-template-columns: 1fr 1fr; } }
+
+/* min-width:0 at both levels: as a grid item and as a flex parent the panel
+ * would otherwise inflate to the <pre>'s min-content width, and the `pre`
+ * cannot scroll inside a box that grew to fit it. */
+.panel {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex; flex-direction: column;
+}
+.panel--good { background: var(--color-base); border-color: var(--color-border-strong); }
+.panel h3 {
+  margin: 0; padding: var(--space-2) var(--space-3);
+  display: flex; justify-content: space-between; gap: var(--space-3);
+  font-size: var(--text-label); font-weight: 500;
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+/* Flex children default to min-width:auto, so this filename sets the panel's
+ * minimum width and pushed the page wider than a phone. Let it wrap instead. */
+.panel h3 { flex-wrap: wrap; }
+.panel h3 span, .panel h3 b { min-width: 0; overflow-wrap: anywhere; }
+.panel h3 b { color: var(--color-text-muted); font-weight: 500; }
+.panel pre {
+  margin: 0; padding: var(--space-4) var(--space-3);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small); line-height: 1.7;
+  color: var(--color-text-muted);
+  white-space: pre; overflow-x: auto;
+}
+.panel pre .sel { background: var(--color-selection); color: var(--color-text); }
+.panel figcaption {
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-small); color: var(--color-text-muted);
+}
+
+/* ---- §03 / §04 Behaviour rows ---- */
+
+.rows { grid-column: 1 / -1; margin-top: var(--space-6); }
+.rows > article {
+  display: grid; gap: var(--space-2) var(--space-5);
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.rows > article:last-child { border-bottom: 1px solid var(--color-border); }
+@media (min-width: 46rem) {
+  .rows > article { grid-template-columns: minmax(0, 3fr) minmax(0, 9fr); }
+}
+.rows h3 {
+  margin: 0;
+  font-size: var(--text-label); font-weight: 500;
+  letter-spacing: var(--tracking-label); text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-top: 3px;
+}
+/* A label is a label: a boxed <code> inside one breaks the column's rhythm. */
+.rows h3 code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+.rows p { margin: 0; color: var(--color-text-muted); max-width: var(--measure); }
+.rows p + p { margin-top: var(--space-3); }
+.rows strong { color: var(--color-text); font-weight: 500; }
+
+/* The level ramp is shown once, where severity is described. */
+.ramp { display: flex; flex-wrap: wrap; gap: 1px; margin-top: var(--space-3); }
+/* It illustrates the prose, so it sits in the prose column, not the label one. */
+@media (min-width: 46rem) { .rows .ramp { grid-column: 2; } }
+.ramp span {
+  border-left: 2px solid var(--c);
+  padding: 2px var(--space-2);
+  background: var(--color-surface);
+  font-size: var(--text-label); letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--color-text-muted);
+}
+
+/* ---- §05 Install ---- */
+
+.builds { grid-column: 1 / -1; margin-top: var(--space-6); }
+.builds a {
+  display: grid; gap: var(--space-1) var(--space-5);
+  align-items: baseline;
+  padding-block: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.builds a:last-of-type { border-bottom: 1px solid var(--color-border); }
+.builds a:hover { background: var(--color-surface); }
+@media (min-width: 46rem) {
+  .builds a { grid-template-columns: minmax(0, 3fr) minmax(0, 5fr) minmax(0, 3fr) auto; }
+}
+.builds b { font-size: var(--text-md); }
+.builds span { color: var(--color-text-muted); font-size: var(--text-small); }
+.builds .files { color: var(--color-text-muted); }
+.builds .go { color: var(--color-text-muted); font-size: var(--text-small); }
+.builds a:hover .go { color: var(--color-text); }
+
+.notice {
+  grid-column: 1 / -1;
+  margin-top: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-left: var(--rail-width) solid var(--level-warning);
+  background: var(--color-surface);
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  max-width: var(--measure);
+}
+.notice .label { color: var(--level-warning); display: block; margin-bottom: var(--space-2); }
+.notice p { margin: 0; }
+.notice p + p { margin-top: var(--space-3); }
+/* A command long enough to wrap gets its own line rather than a broken box. */
+.notice code {
+  display: block;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-base);
+  overflow-x: auto;
+  white-space: pre;
+  font-size: var(--text-small);
+}
+
+.build { grid-column: 1 / -1; margin-top: var(--space-7); }
+.build pre {
+  margin: var(--space-4) 0 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: var(--space-4);
+  overflow-x: auto;
+  font-size: var(--text-small);
+  line-height: 1.9;
+  color: var(--color-text);
+}
+.build pre .c { color: var(--color-text-muted); }
+.build pre .p { color: var(--color-text-faint); user-select: none; }
+
+/* ====================== Colophon ====================== */
+
+footer {
+  border-top: 1px solid var(--color-border);
+  padding-block: var(--space-5) var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6);
+  align-items: baseline; justify-content: space-between;
+}
+footer p { margin: 0; max-width: 52ch; }
+footer nav { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); }
+footer a {
+  display: inline-flex; align-items: center; min-height: 44px;
+  color: var(--color-text-muted); text-decoration: none;
+}
+footer a:hover { color: var(--color-text); text-decoration: underline; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="shell">
+  <header class="masthead">
+    <a class="wordmark" href="./">
+      <img src="./icon.png" alt="" width="22" height="22">
+      <b>LogDeck<span> Desktop</span></b>
+    </a>
+    <nav aria-label="Primary">
+      <a href="#vocabulary">Vocabulary</a>
+      <a href="#behaviour">Behaviour</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/aravindpanicker/logdeck-desktop">GitHub</a>
+    </nav>
+    <p class="stamp"><span data-version>v1.0.0</span> · MIT</p>
+  </header>
+</div>
+
+<main id="main">
+
+<div class="shell">
+  <section class="hero grid">
+    <div class="hero__text">
+      <p class="label">Desktop log reader · macOS, Windows, Linux</p>
+      <h1>A log reader for the Laravel projects on this machine.</h1>
+      <p class="lede">
+        Laravel writes a log event as a header line, then its JSON context, then
+        however many stack frames the exception carried. In a terminal that
+        arrives as forty separate lines with nothing marking where one event
+        stops. LogDeck parses the header and keeps everything under it attached,
+        so a 47-frame trace is one row you can copy in a single click and paste
+        into an issue intact.
+      </p>
+      <p class="lede">
+        Register the project folders you work in. LogDeck tails all of them and
+        shows you the one you have selected.
+      </p>
+      <div class="cta">
+        <a class="btn btn--primary" id="dl-primary" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">Download</a>
+        <a class="btn" href="https://github.com/aravindpanicker/logdeck-desktop">Read the source</a>
+      </div>
+      <p class="cta-note">
+        No account, no telemetry. The builds are unsigned;
+        <a href="#install">what to do about that</a>.
+      </p>
+    </div>
+
+    <div class="hero__spec">
+      <p class="label" style="margin-bottom:var(--space-3)">Specification</p>
+      <dl class="spec">
+        <div><dt>Version</dt><dd data-version>1.0.0</dd></div>
+        <div><dt>Platforms</dt><dd>macOS universal <span>· Windows x64 · Linux x64</span></dd></div>
+        <div><dt>Licence</dt><dd>MIT</dd></div>
+        <div><dt>Front end</dt><dd>React 19 <span>· TypeScript · Vite</span></dd></div>
+        <div><dt>Back end</dt><dd>Rust <span>· Tauri v2</span></dd></div>
+        <div><dt>Polling</dt><dd>300 ms <span>per project</span></dd></div>
+        <div><dt>Retained</dt><dd>2000 entries <span>· older paged in</span></dd></div>
+        <div><dt>Permissions</dt><dd><code>dialog</code><span>, </span><code>clipboard-manager:allow-write-text</code></dd></div>
+        <div><dt>Network</dt><dd>None <span>· the app contains no network code</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <figure class="plate">
+    <div class="window" role="img" aria-label="The LogDeck Desktop window. A sidebar lists four registered Laravel projects, two of them carrying activity badges and one offline. The main pane shows a stream of log entries with coloured severity rails, an expanded stack trace under an error, a rotation break, and a critical entry below it.">
+      <div class="titlebar" aria-hidden="true">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <em>LogDeck Desktop</em>
+      </div>
+      <div class="pane">
+        <aside class="sidebar" aria-hidden="true">
+          <p class="brand">Log<span>Deck</span><em>v1</em></p>
+          <p class="sidebar__label">Projects <span>4</span></p>
+          <div class="proj" aria-current="true">▸ api</div>
+          <div class="proj">▸ billing<span class="badge">12</span></div>
+          <div class="proj">▸ storefront<span class="badge badge--warn">3</span></div>
+          <div class="proj offline">▸ legacy</div>
+          <div class="addproj">+ Add project</div>
+          <p class="watching">Watching 4 sources</p>
+        </aside>
+
+        <div class="main" aria-hidden="true">
+          <div class="toolbar">
+            <span class="target">Target <b>Latest</b> following ▾</span>
+            <span class="filters">
+              <span class="chipf" style="--c:var(--level-emergency)">emergency</span>
+              <span class="chipf" style="--c:var(--level-alert)">alert</span>
+              <span class="chipf" style="--c:var(--level-critical)">critical</span>
+              <span class="chipf" style="--c:var(--level-error)">error</span>
+              <span class="chipf" style="--c:var(--level-warning)">warning</span>
+              <span class="chipf" style="--c:var(--level-notice)">notice</span>
+              <span class="chipf" style="--c:var(--level-info)">info</span>
+              <span class="chipf" style="--c:var(--level-debug)">debug</span>
+              <span class="chipf" data-off>unknown</span>
+            </span>
+          </div>
+
+          <div class="searchbar">
+            <span class="field">Billing</span>
+            <span class="count">4 / 246</span>
+          </div>
+
+          <div class="stream">
+            <div class="row reveal" data-level="info" style="animation-delay:.05s">
+              <span class="rail"></span><span class="time">12:04:29</span><span class="lvl">info</span><span class="msg">Job queued: SendInvoiceEmail</span>
+            </div>
+            <div class="row reveal" data-level="debug" style="animation-delay:.12s">
+              <span class="rail"></span><span class="time">12:04:30</span><span class="lvl">debug</span><span class="msg">Cache miss for key billing.plan.19</span>
+            </div>
+            <div class="row reveal" data-level="warning" style="animation-delay:.19s">
+              <span class="rail"></span><span class="time">12:04:30</span><span class="lvl">warn</span><span class="msg">Slow query: 1,284 ms on invoices</span>
+            </div>
+            <div class="row reveal is-hovered" data-level="error" style="animation-delay:.26s">
+              <span class="rail"></span><span class="time">12:04:31</span><span class="lvl">error</span><span class="msg">Undefined property: App\Models\Invoice::$total</span><span class="copy">Copy</span>
+            </div>
+            <p class="ctx reveal" style="animation-delay:.30s">▾ Context, 59 lines · 2 matches</p>
+            <pre class="trace reveal" style="animation-delay:.33s">  #0 app/Services/<span class="mark">Billing</span>.php(88): renderTotal()
+  #1 app/Http/Controllers/InvoiceController.php(42)
+  #2 vendor/laravel/framework/…/Route.php(260)</pre>
+            <div class="brk reveal" style="animation-delay:.40s">break — laravel-2026-08-14.log</div>
+            <div class="row reveal" data-level="critical" style="animation-delay:.47s">
+              <span class="rail"></span><span class="time">00:00:02</span><span class="lvl">crit</span><span class="msg">Redis connection refused on 127.0.0.1:6379</span>
+            </div>
+            <div class="row reveal" data-level="unknown" style="animation-delay:.54s">
+              <span class="rail"></span><span class="time">—</span><span class="lvl">unknown</span><span class="msg">PHP Warning: fwrite(): write of 8192 bytes failed</span>
+            </div>
+          </div>
+
+          <div class="statusbar">Following</div>
+        </div>
+      </div>
+    </div>
+    <figcaption>
+      <span>Fig. 1</span>
+      <em>Four projects registered, one selected. The search term “Billing” has expanded an entry’s context and marked the hits inside the trace. Below the break, the file has rotated.</em>
+    </figcaption>
+  </figure>
+</div>
+
+<hr class="rule">
+
+<!-- ======================= §01 Vocabulary ======================= -->
+<div class="shell">
+  <section id="vocabulary" class="grid">
+    <div class="head">
+      <p class="sec"><span>§ 01</span><span>Vocabulary</span></p>
+      <h2>Six words the app uses precisely</h2>
+      <p>
+        These are the terms in the interface and in the code, and they mean the
+        same thing in both places. The rest of the page assumes them.
+      </p>
+    </div>
+
+    <dl class="terms">
+      <div>
+        <dt>Entry</dt>
+        <dd>One log event: the header line, its JSON context, and its stack frames. Filtering, search, counting and copying all operate on entries.</dd>
+      </div>
+      <div>
+        <dt>Line</dt>
+        <dd>One physical line of a file. Lines matter to the parser. Nothing in the interface asks you to act on one.</dd>
+      </div>
+      <div>
+        <dt>Break</dt>
+        <dd>A marker placed where the source file rotated or was truncated. Entries on either side of a break are unrelated in time.</dd>
+      </div>
+      <div>
+        <dt>Session record</dt>
+        <dd>Everything LogDeck has retained for a project since you selected it, across any number of breaks. It holds the newest 2000 entries and pages older ones back when you scroll for them.</dd>
+      </div>
+      <div>
+        <dt>Project</dt>
+        <dd>A folder you have registered, identified by its absolute path. Registration records your intent, so a folder with no <code>storage/logs/</code> is still added and shown inert with the reason.</dd>
+      </div>
+      <div>
+        <dt>Target</dt>
+        <dd>The file being read inside a project right now: the newest file in the logs directory, or a specific one you have pinned.</dd>
+      </div>
+    </dl>
+  </section>
+</div>
+
+<hr class="rule">
+
+<!-- ======================= §02 Copying ======================= -->
+<div class="shell">
+  <section class="grid">
+    <div class="head">
+      <p class="sec"><span>§ 02</span><span>Copying an event</span></p>
+      <h2>Selecting a stack trace by hand is the part that wastes your time</h2>
+      <p>
+        Both panels below hold the same <code>ErrorException</code>. On the left
+        it has been selected with a mouse in a terminal, which is where the
+        errors creep in: the drag starts mid-line, misses the header, and runs
+        into the following event. On the right the entry is the selection unit,
+        so there is nothing to aim at.
+      </p>
+    </div>
+
+    <div class="pair">
+      <figure class="panel">
+        <h3><span>tail -f storage/logs/laravel.log</span><b>40 lines</b></h3>
+        <pre>[2026-08-14 12:04:31] local.ERROR: Undefined
+property: App\Models\Invoice::$total {"except
+ion":"[object] (ErrorException(code: 0): Unde
+fined property at /app/Services/Billing.php:8
+8)
+[stacktrace]
+#0 /app/Services/Billing.php(88): renderTot<span class="sel">al
+#1 /app/Http/Controllers/InvoiceController.ph
+p(42): App\Services\Billing->summary()
+#2 /vendor/laravel/framework/src/…/Route.p</span>hp
+</pre>
+        <figcaption>What lands on the clipboard: no header, a truncated first frame, and the beginning of an event that has nothing to do with this one.</figcaption>
+      </figure>
+
+      <figure class="panel panel--good">
+        <h3><span>LogDeck</span><b>1 entry</b></h3>
+        <pre><span class="sel">[2026-08-14 12:04:31] local.ERROR: Undefined
+property: App\Models\Invoice::$total
+{"exception":"[object] (ErrorException…)"}
+[stacktrace]
+#0 /app/Services/Billing.php(88)
+#1 /app/Http/Controllers/InvoiceController(42)
+#2 /vendor/laravel/framework/src/…/Route.php</span>
+
+     ⌘C
+</pre>
+        <figcaption>The header, the context and every frame, verbatim, with line endings normalised to LF.</figcaption>
+      </figure>
+    </div>
+  </section>
+</div>
+
+<hr class="rule">
+
+<!-- ======================= §03 Behaviour ======================= -->
+<div class="shell">
+  <section id="behaviour" class="grid">
+    <div class="head">
+      <p class="sec"><span>§ 03</span><span>Behaviour</span></p>
+      <h2>What it does while you are looking at something else</h2>
+    </div>
+
+    <div class="rows">
+      <article>
+        <h3>Severity</h3>
+        <p>
+          Level is drawn as a three-pixel rail in the left gutter, at full height
+          of the entry. Red deepens and saturates from <strong>error</strong>
+          through <strong>emergency</strong>, so the worst thing on screen is the
+          brightest thing in the gutter. Text with no parseable header gets a
+          dashed grey rail: the file did not state a level, and a guess would
+          read as one.
+        </p>
+        <div class="ramp" aria-hidden="true">
+          <span style="--c:var(--level-debug)">debug</span>
+          <span style="--c:var(--level-info)">info</span>
+          <span style="--c:var(--level-notice)">notice</span>
+          <span style="--c:var(--level-warning)">warning</span>
+          <span style="--c:var(--level-error)">error</span>
+          <span style="--c:var(--level-critical)">critical</span>
+          <span style="--c:var(--level-alert)">alert</span>
+          <span style="--c:var(--level-emergency)">emergency</span>
+        </div>
+      </article>
+
+      <article>
+        <h3>Rotation</h3>
+        <p>
+          When the file rotates at midnight, or someone runs
+          <code>php artisan log:clear</code> while you are reading, LogDeck
+          inserts a break and keeps every entry above it. The file emptying does
+          not empty your screen.
+        </p>
+      </article>
+
+      <article>
+        <h3>Several projects</h3>
+        <p>
+          Every registered project is watched at once. The ones you have not
+          selected keep two numbers — how many entries have arrived and the
+          highest level among them — and throw the text away. That is what stops
+          memory growing with the number of projects you register.
+        </p>
+      </article>
+
+      <article>
+        <h3>Search</h3>
+        <p>
+          Search runs over the raw text of each entry, collapsed context
+          included. A hit buried in a stack trace expands that entry, reports how
+          many matches it holds, and highlights them.
+        </p>
+      </article>
+
+      <article>
+        <h3>Channels</h3>
+        <p>
+          The <code>single</code> channel writes <code>laravel.log</code>; the
+          <code>daily</code> channel writes <code>laravel-YYYY-MM-DD.log</code>
+          and rotates. LogDeck resolves the logs directory rather than a
+          filename, so either channel works, and so does a project using both.
+          Pinning a specific file stops it following rotation; the file still
+          streams.
+        </p>
+      </article>
+
+      <article>
+        <h3>Missing folders</h3>
+        <p>
+          Move a project folder away and it is marked offline with the reason.
+          The watcher backs off from 300 ms toward five seconds and reattaches on
+          its own when the path comes back. Nothing leaves the sidebar unless you
+          remove it.
+        </p>
+      </article>
+    </div>
+  </section>
+</div>
+
+<hr class="rule">
+
+<!-- ======================= §04 Architecture ======================= -->
+<div class="shell">
+  <section id="architecture" class="grid">
+    <div class="head">
+      <p class="sec"><span>§ 04</span><span>Architecture</span></p>
+      <h2>Two processes, one repository</h2>
+      <p>
+        React renders and filters. Rust owns the registry, the watcher threads
+        and every file read. Three decisions follow from that split and explain
+        most of the rest of the code.
+      </p>
+    </div>
+
+    <div class="rows">
+      <article>
+        <h3>Session record</h3>
+        <p>
+          The stream is a record of what has been observed since you selected the
+          project, not a rendering of the file's current contents. That
+          distinction is the whole reason a truncation is survivable: there is no
+          step where the app re-reads the file and finds it empty.
+        </p>
+      </article>
+
+      <article>
+        <h3>Tailing in Rust</h3>
+        <p>
+          One thread per project reads forward from a stored byte offset every
+          300 ms and pushes new entries to the front end over Tauri events.
+          Nothing polls the filesystem from JavaScript. A file shorter than the
+          stored offset <em>is</em> the truncation signal, which is why there is
+          no filesystem-watcher dependency to configure or debug.
+        </p>
+      </article>
+
+      <article>
+        <h3>No <code>fs</code> plugin</h3>
+        <p>
+          Tauri's <code>fs</code> plugin fixes its allowed paths at compile time,
+          and the paths here are folders you choose at runtime, so the plugin is
+          deliberately absent. File access goes through the app's own commands
+          instead. The full capability allowlist is <code>dialog</code> and
+          <code>clipboard-manager:allow-write-text</code>. There is no network
+          code in the app, so nothing it reads can leave your machine.
+        </p>
+      </article>
+    </div>
+  </section>
+</div>
+
+<hr class="rule">
+
+<!-- ======================= §05 Install ======================= -->
+<div class="shell">
+  <section id="install" class="grid">
+    <div class="head">
+      <p class="sec"><span>§ 05</span><span>Install</span></p>
+      <h2>Version <span data-version>1.0.0</span></h2>
+      <p>Free and MIT licensed. Pick a build, or compile it yourself below.</p>
+    </div>
+
+    <div class="builds">
+      <a id="dl-macos" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+        <b>macOS</b>
+        <span>Universal — Apple Silicon and Intel</span>
+        <span class="files">.dmg</span>
+        <span class="go">Download →</span>
+      </a>
+      <a id="dl-windows" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+        <b>Windows</b>
+        <span>x86-64</span>
+        <span class="files">.exe installer · .msi</span>
+        <span class="go">Download →</span>
+      </a>
+      <a id="dl-linux" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+        <b>Linux</b>
+        <span>x86-64</span>
+        <span class="files">.AppImage · .deb · .rpm</span>
+        <span class="go">Download →</span>
+      </a>
+    </div>
+
+    <div class="notice">
+      <span class="label">The builds are unsigned</span>
+      <p>
+        macOS refuses the first launch with “unidentified developer”. Right-click
+        the app and choose <em>Open</em>, or clear the quarantine flag:
+        <code>xattr -dr com.apple.quarantine "/Applications/LogDeck Desktop.app"</code>
+      </p>
+      <p>
+        Windows shows SmartScreen; the app is behind
+        <em>More info → Run anyway</em>. Signing both platforms needs paid
+        certificates.
+      </p>
+    </div>
+
+    <div class="build">
+      <h3 class="label">Build from source</h3>
+      <pre><span class="c"># Needs Rust stable, the Tauri v2 system dependencies, and Node 24 LTS</span>
+<span class="p" aria-hidden="true">$</span> git clone https://github.com/aravindpanicker/logdeck-desktop.git
+<span class="p" aria-hidden="true">$</span> cd logdeck-desktop
+<span class="p" aria-hidden="true">$</span> nvm use && npm install
+<span class="p" aria-hidden="true">$</span> npm run tauri build</pre>
+    </div>
+  </section>
+</div>
+
+</main>
+
+<div class="shell">
+  <footer>
+    <p>
+      LogDeck Desktop <span data-version>1.0.0</span>, MIT licensed.
+    </p>
+    <nav aria-label="Footer">
+      <a href="https://github.com/aravindpanicker/logdeck-desktop">Source</a>
+      <a href="https://github.com/aravindpanicker/logdeck-desktop/releases">Releases</a>
+      <a href="https://github.com/aravindpanicker/logdeck-desktop/issues">Issues</a>
+      <a href="https://github.com/aravindpanicker/logdeck-desktop/blob/main/LICENSE">Licence</a>
+    </nav>
+  </footer>
+</div>
+
+<script>
+/*
+ * Point the download links at the actual assets of the newest release, and
+ * update every version stamp, so a new tag does not strand this page on a stale
+ * number. Every link already works without this: each href is the releases
+ * page, and this only ever narrows it to a direct file. Any failure — offline,
+ * rate limited, API change — leaves the served markup exactly as it is.
+ */
+(async () => {
+  const REPO = 'aravindpanicker/logdeck-desktop';
+  const pick = (assets, ...exts) =>
+    assets.find(a => exts.some(e => a.name.toLowerCase().endsWith(e)));
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!res.ok) return;
+    const { tag_name: tag, assets = [] } = await res.json();
+
+    const mac = pick(assets, '.dmg');
+    const win = pick(assets, '-setup.exe', '.exe');
+    const lin = pick(assets, '.appimage');
+
+    const set = (id, asset) => {
+      const el = document.getElementById(id);
+      if (el && asset) el.href = asset.browser_download_url;
+    };
+    set('dl-macos', mac);
+    set('dl-windows', win);
+    set('dl-linux', lin);
+
+    // The hero button follows the visitor's platform when the UA reveals it.
+    const ua = navigator.userAgent;
+    const os = /Mac/i.test(ua) ? 'macOS' : /Win/i.test(ua) ? 'Windows' : /Linux|X11/i.test(ua) ? 'Linux' : null;
+    const mine = os === 'macOS' ? mac : os === 'Windows' ? win : os === 'Linux' ? lin : null;
+    const primary = document.getElementById('dl-primary');
+    if (primary && mine) {
+      primary.href = mine.browser_download_url;
+      primary.textContent = `Download for ${os}`;
+    }
+
+    if (tag) {
+      // The masthead stamp carries the `v`; the spec table and headings do not.
+      for (const el of document.querySelectorAll('[data-version]')) {
+        el.textContent = el.closest('.stamp') ? tag : tag.replace(/^v/, '');
+      }
+    }
+  } catch {
+    /* The served markup already links to the releases page. */
+  }
+})();
+</script>
+</body>
+</html>

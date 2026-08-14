@@ -1,0 +1,99 @@
+/* Empty stream: shown while no Project is selected. */
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6);
+  overflow-y: auto;
+}
+
+/*
+ * Deliberately left-aligned inside a bounded measure rather than centred text.
+ * Centred paragraphs are the template look; a devtool reads like documentation.
+ */
+.empty-state__panel {
+  width: 100%;
+  max-width: 38rem;
+}
+
+.empty-state__eyebrow {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Scale carries the hierarchy here — the title is the only large thing on the
+   surface, so it needs no extra weight or colour to lead. */
+.empty-state__title {
+  margin-top: var(--space-4);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-normal);
+  letter-spacing: -0.01em;
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+
+.empty-state__body {
+  margin-top: var(--space-3);
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-muted);
+}
+
+.empty-state__code {
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.empty-state__legend {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.empty-state__legend-term {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+  line-height: var(--leading-relaxed);
+}
+
+/* A fixed column count keeps the eight Levels on two even rows instead of
+   letting one orphan wrap alone. */
+.empty-state__levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+}
+
+/*
+ * The rail, exactly as a stream row wears it: a 3 px gutter mark, never a
+ * badge background. `--color-rail` comes from the [data-level] mapping in
+ * global.css.
+ */
+.empty-state__level {
+  padding-left: var(--space-2);
+  border-left: var(--rail-width) solid var(--color-rail);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
