@@ -1,0 +1,73 @@
+name: Site
+
+# Publishes site/ to GitHub Pages, stamping the version into the markup so the
+# page never carries a hand-edited number.
+#
+# The version comes from src-tauri/tauri.conf.json, which release.yml has
+# already established as the authority (it fails the release when package.json
+# or Cargo.toml disagree). On a version-bump merge this deploys before the
+# release finishes building, so for the length of that build the stamped number
+# is ahead of the assets — harmless, because every download link in the served
+# markup points at the releases page until the runtime fetch narrows it, and
+# that fetch reads the newest *published* release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - src-tauri/tauri.conf.json
+      - .github/workflows/site.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race for the one Pages environment, and drop a
+# superseded run rather than publishing it after the newer one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp the version into the page
+        run: |
+          set -euo pipefail
+
+          version=$(jq -r '.version' src-tauri/tauri.conf.json)
+
+          if ! grep -q '__VERSION__' site/index.html; then
+            echo "::error::No __VERSION__ placeholder in site/index.html. Either the token was renamed or a literal version was committed — the page would ship a number nothing keeps current."
+            exit 1
+          fi
+
+          sed -i "s/__VERSION__/$version/g" site/index.html
+
+          # sed cannot partially fail, but a token introduced with different
+          # spelling elsewhere in the file would survive and reach visitors.
+          if grep -n '__VERSION__' site/index.html; then
+            echo "::error::A __VERSION__ placeholder survived substitution."
+            exit 1
+          fi
+
+          echo "Stamped $version into site/index.html."
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

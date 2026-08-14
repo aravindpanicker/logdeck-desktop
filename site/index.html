@@ -719,7 +719,7 @@ footer a:hover { color: var(--color-text); text-decoration: underline; }
       <a href="#install">Install</a>
       <a href="https://github.com/aravindpanicker/logdeck-desktop">GitHub</a>
     </nav>
-    <p class="stamp"><span data-version>v1.0.0</span> · MIT</p>
+    <p class="stamp"><span data-version>v__VERSION__</span> · MIT</p>
   </header>
 </div>
 
@@ -755,8 +755,8 @@ footer a:hover { color: var(--color-text); text-decoration: underline; }
     <div class="hero__spec">
       <p class="label" style="margin-bottom:var(--space-3)">Specification</p>
       <dl class="spec">
-        <div><dt>Version</dt><dd data-version>1.0.0</dd></div>
-        <div><dt>Platforms</dt><dd>macOS universal <span>· Windows x64 · Linux x64</span></dd></div>
+        <div><dt>Version</dt><dd data-version>__VERSION__</dd></div>
+        <div><dt>Platforms</dt><dd>macOS arm64 <span>· macOS x64 · Windows x64 · Linux x64</span></dd></div>
         <div><dt>Licence</dt><dd>MIT</dd></div>
         <div><dt>Front end</dt><dd>React 19 <span>· TypeScript · Vite</span></dd></div>
         <div><dt>Back end</dt><dd>Rust <span>· Tauri v2</span></dd></div>
@@ -1085,24 +1085,30 @@ property: App\Models\Invoice::$total
   <section id="install" class="grid">
     <div class="head">
       <p class="sec"><span>§ 05</span><span>Install</span></p>
-      <h2>Version <span data-version>1.0.0</span></h2>
+      <h2>Version <span data-version>__VERSION__</span></h2>
       <p>Free and MIT licensed. Pick a build, or compile it yourself below.</p>
     </div>
 
     <div class="builds">
-      <a id="dl-macos" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+      <a data-os="macOS" data-asset="aarch64.dmg" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
         <b>macOS</b>
-        <span>Universal — Apple Silicon and Intel</span>
-        <span class="files">.dmg</span>
+        <span>Apple Silicon — M1 and later</span>
+        <span class="files">.dmg · aarch64</span>
         <span class="go">Download →</span>
       </a>
-      <a id="dl-windows" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+      <a data-os="macOS" data-asset="x64.dmg" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+        <b>macOS</b>
+        <span>Intel</span>
+        <span class="files">.dmg · x64</span>
+        <span class="go">Download →</span>
+      </a>
+      <a data-os="Windows" data-asset="-setup.exe .exe" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
         <b>Windows</b>
         <span>x86-64</span>
         <span class="files">.exe installer · .msi</span>
         <span class="go">Download →</span>
       </a>
-      <a id="dl-linux" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+      <a data-os="Linux" data-asset=".appimage" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
         <b>Linux</b>
         <span>x86-64</span>
         <span class="files">.AppImage · .deb · .rpm</span>
@@ -1140,7 +1146,7 @@ property: App\Models\Invoice::$total
 <div class="shell">
   <footer>
     <p>
-      LogDeck Desktop <span data-version>1.0.0</span>, MIT licensed.
+      LogDeck Desktop <span data-version>__VERSION__</span>, MIT licensed.
     </p>
     <nav aria-label="Footer">
       <a href="https://github.com/aravindpanicker/logdeck-desktop">Source</a>
@@ -1153,16 +1159,22 @@ property: App\Models\Invoice::$total
 
 <script>
 /*
- * Point the download links at the actual assets of the newest release, and
- * update every version stamp, so a new tag does not strand this page on a stale
- * number. Every link already works without this: each href is the releases
- * page, and this only ever narrows it to a direct file. Any failure — offline,
- * rate limited, API change — leaves the served markup exactly as it is.
+ * Narrow each download link from the releases page to a direct file, and move
+ * every version stamp onto the newest release, so a new tag does not strand
+ * this page on a stale number.
+ *
+ * This only ever enhances. Every link in `.builds` already carries a working
+ * href to the releases page, and the version literal is substituted into the
+ * markup at deploy time by `.github/workflows/site.yml`. Any failure here —
+ * offline, rate limited, an API change — leaves the served page as it is.
+ *
+ * A build row declares what it needs rather than being wired up by id:
+ *   data-os     the platform the row serves, matched against the visitor's
+ *   data-asset  asset name suffixes, space separated, tried in order, lowercase
+ * Adding or retargeting a build is one `<a>`; nothing below changes.
  */
 (async () => {
   const REPO = 'aravindpanicker/logdeck-desktop';
-  const pick = (assets, ...exts) =>
-    assets.find(a => exts.some(e => a.name.toLowerCase().endsWith(e)));
 
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
@@ -1171,25 +1183,40 @@ property: App\Models\Invoice::$total
     if (!res.ok) return;
     const { tag_name: tag, assets = [] } = await res.json();
 
-    const mac = pick(assets, '.dmg');
-    const win = pick(assets, '-setup.exe', '.exe');
-    const lin = pick(assets, '.appimage');
+    const resolve = suffixes =>
+      assets.find(a => suffixes.some(s => a.name.toLowerCase().endsWith(s)));
 
-    const set = (id, asset) => {
-      const el = document.getElementById(id);
-      if (el && asset) el.href = asset.browser_download_url;
-    };
-    set('dl-macos', mac);
-    set('dl-windows', win);
-    set('dl-linux', lin);
+    // Each row resolves on its own, so one absent asset cannot strand the rest.
+    const rows = [...document.querySelectorAll('.builds a[data-asset]')];
+    const resolved = new Set();
+    for (const row of rows) {
+      const asset = resolve(row.dataset.asset.split(/\s+/));
+      if (!asset) continue;
+      row.href = asset.browser_download_url;
+      resolved.add(row);
+    }
 
-    // The hero button follows the visitor's platform when the UA reveals it.
+    /*
+     * The hero button follows the visitor's platform, but only when that
+     * platform has exactly one build. Two macOS rows is the case that matters:
+     * Safari and Chrome both report "Intel Mac OS X" on Apple Silicon, so
+     * choosing one would hand half of those visitors a binary that cannot run.
+     * Sending them to the labelled list is the honest outcome — and it falls
+     * out of the count rather than naming macOS, so a second Linux build would
+     * behave the same way without a change here.
+     */
     const ua = navigator.userAgent;
-    const os = /Mac/i.test(ua) ? 'macOS' : /Win/i.test(ua) ? 'Windows' : /Linux|X11/i.test(ua) ? 'Linux' : null;
-    const mine = os === 'macOS' ? mac : os === 'Windows' ? win : os === 'Linux' ? lin : null;
+    const os = /Mac/i.test(ua) ? 'macOS'
+      : /Win/i.test(ua) ? 'Windows'
+      : /Linux|X11/i.test(ua) ? 'Linux'
+      : null;
+
+    const mine = rows.filter(row => row.dataset.os === os);
     const primary = document.getElementById('dl-primary');
-    if (primary && mine) {
-      primary.href = mine.browser_download_url;
+
+    if (primary && mine.length) {
+      const direct = mine.length === 1 && resolved.has(mine[0]);
+      primary.href = direct ? mine[0].href : '#install';
       primary.textContent = `Download for ${os}`;
     }
 
