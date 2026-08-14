@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Decide whether to release
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Compare version against the previous commit
+        id: check
+        run: |
+          set -euo pipefail
+
+          version=$(jq -r '.version' src-tauri/tauri.conf.json)
+          pkg_version=$(jq -r '.version' package.json)
+          cargo_version=$(grep -m1 '^version = ' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+
+          if [ "$pkg_version" != "$version" ] || [ "$cargo_version" != "$version" ]; then
+            echo "::error::Version drift. tauri.conf.json=$version package.json=$pkg_version Cargo.toml=$cargo_version — all three must match."
+            exit 1
+          fi
+
+          previous=$(git show HEAD^:src-tauri/tauri.conf.json 2>/dev/null | jq -r '.version' || echo "")
+
+          if [ "$version" = "$previous" ]; then
+            echo "Version unchanged at $version — no release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null 2>&1; then
+            echo "::error::Tag v$version already exists. Bump the version before merging."
+            exit 1
+          fi
+
+          echo "Version $previous -> $version — releasing."
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: gate
+    if: needs.gate.outputs.should_release == 'true'
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macos-arm64
+            platform: macos-latest
+            rust_targets: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - label: macos-x64
+            platform: macos-latest
+            rust_targets: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - label: linux-x64
+            platform: ubuntu-22.04
+            rust_targets: ""
+            args: ""
+          - label: windows-x64
+            platform: windows-latest
+            rust_targets: ""
+            args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.label }}
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v${{ needs.gate.outputs.version }}
+          releaseName: LogDeck Desktop v${{ needs.gate.outputs.version }}
+          releaseBody: |
+            Unsigned builds for macOS (Apple Silicon and Intel), Windows and Linux.
+
+            macOS refuses the first launch with "unidentified developer" — right-click the app and choose *Open*. Windows shows a SmartScreen warning behind *More info → Run anyway*.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

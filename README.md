@@ -138,6 +138,17 @@ directory — appending an entry, truncating the file, dropping in a newer dated
 one, moving a project folder away and back, restarting. Each test is named for
 the behaviour it protects.
 
+### Releasing
+
+Merging to `main` publishes a release automatically — but only when the PR bumps
+the version. `.github/workflows/release.yml` compares `version` in
+`src-tauri/tauri.conf.json` against the previous commit; unchanged means no
+release, so docs-only merges are free. The same version must appear in
+`package.json` and `src-tauri/Cargo.toml` or the run fails rather than shipping a
+bundle labelled differently from its tag. A matching build then runs on macOS
+(Apple Silicon and Intel), Windows and Ubuntu 22.04, and all the installers land
+on one tagged release.
+
 **What CI cannot cover**, and is checked by hand instead: the native folder
 dialog, reading the system clipboard back after a copy, a real WebView boot
 (CSP violations included), and anything measured in pixels — jsdom has no
