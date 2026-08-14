@@ -56,7 +56,8 @@ Registering a folder **warns but never blocks**: a folder with no
 
 Download a build for your platform from
 [Releases](https://github.com/aravindpanicker/logdeck-desktop/releases) —
-macOS (universal), Windows and Linux — or build from source below.
+macOS (Apple Silicon and Intel, as separate builds), Windows and Linux — or
+build from source below.
 
 **The builds are unsigned.** macOS will refuse the first launch with
 "unidentified developer": right-click the app and choose *Open*, or clear the
