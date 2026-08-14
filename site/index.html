@@ -756,7 +756,7 @@ footer a:hover { color: var(--color-text); text-decoration: underline; }
       <p class="label" style="margin-bottom:var(--space-3)">Specification</p>
       <dl class="spec">
         <div><dt>Version</dt><dd data-version>__VERSION__</dd></div>
-        <div><dt>Platforms</dt><dd>macOS arm64 <span>· macOS x64 · Windows x64 · Linux x64</span></dd></div>
+        <div><dt>Platforms</dt><dd>macOS universal <span>· Windows x64 · Linux x64</span></dd></div>
         <div><dt>Licence</dt><dd>MIT</dd></div>
         <div><dt>Front end</dt><dd>React 19 <span>· TypeScript · Vite</span></dd></div>
         <div><dt>Back end</dt><dd>Rust <span>· Tauri v2</span></dd></div>
@@ -1090,21 +1090,15 @@ property: App\Models\Invoice::$total
     </div>
 
     <div class="builds">
-      <a data-os="macOS" data-asset="aarch64.dmg" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
+      <a data-os="macOS" data-asset="universal.dmg" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
         <b>macOS</b>
-        <span>Apple Silicon — M1 and later</span>
-        <span class="files">.dmg · aarch64</span>
-        <span class="go">Download →</span>
-      </a>
-      <a data-os="macOS" data-asset="x64.dmg" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
-        <b>macOS</b>
-        <span>Intel</span>
-        <span class="files">.dmg · x64</span>
+        <span>Apple Silicon and Intel</span>
+        <span class="files">.dmg · universal</span>
         <span class="go">Download →</span>
       </a>
       <a data-os="Windows" data-asset="-setup.exe .exe" href="https://github.com/aravindpanicker/logdeck-desktop/releases/latest">
         <b>Windows</b>
-        <span>x86-64</span>
+        <span>x86-64 — also runs on Arm via emulation</span>
         <span class="files">.exe installer · .msi</span>
         <span class="go">Download →</span>
       </a>
@@ -1198,12 +1192,12 @@ property: App\Models\Invoice::$total
 
     /*
      * The hero button follows the visitor's platform, but only when that
-     * platform has exactly one build. Two macOS rows is the case that matters:
-     * Safari and Chrome both report "Intel Mac OS X" on Apple Silicon, so
-     * choosing one would hand half of those visitors a binary that cannot run.
-     * Sending them to the labelled list is the honest outcome — and it falls
-     * out of the count rather than naming macOS, so a second Linux build would
-     * behave the same way without a change here.
+     * platform has exactly one build — otherwise it sends them to the labelled
+     * list rather than guessing. Guessing is what the count guards against:
+     * Safari and Chrome both report "Intel Mac OS X" on Apple Silicon, so the
+     * user agent cannot pick an architecture. macOS ships one universal build
+     * and so resolves directly; a second build on any platform would fall back
+     * to the list without a change here.
      */
     const ua = navigator.userAgent;
     const os = /Mac/i.test(ua) ? 'macOS'

@@ -56,8 +56,8 @@ Registering a folder **warns but never blocks**: a folder with no
 
 Download a build for your platform from
 [Releases](https://github.com/aravindpanicker/logdeck-desktop/releases) —
-macOS (Apple Silicon and Intel, as separate builds), Windows and Linux — or
-build from source below.
+macOS (one universal `.dmg` covering Apple Silicon and Intel), Windows and
+Linux — or build from source below.
 
 **The builds are unsigned.** macOS will refuse the first launch with
 "unidentified developer": right-click the app and choose *Open*, or clear the
@@ -147,8 +147,10 @@ the version. `.github/workflows/release.yml` compares `version` in
 release, so docs-only merges are free. The same version must appear in
 `package.json` and `src-tauri/Cargo.toml` or the run fails rather than shipping a
 bundle labelled differently from its tag. A matching build then runs on macOS
-(Apple Silicon and Intel), Windows and Ubuntu 22.04, and all the installers land
-on one tagged release.
+(`universal-apple-darwin`, one fat binary for both architectures), Windows and
+Ubuntu 22.04, and all the installers land on one tagged release. Windows has no
+equivalent fat-binary format, so it stays a single x64 installer — which Arm
+Windows runs under emulation.
 
 **What CI cannot cover**, and is checked by hand instead: the native folder
 dialog, reading the system clipboard back after a copy, a real WebView boot
